@@ -100,49 +100,29 @@ class Board:
         
         all_moves = self.get_all_moves(board, col)
 
-        # Pas de coups → échec ou pat
-        if depth == 0 or not all_moves:
-            return self.__bot_score(board, n_moves, col)
+        if depth == 0 or not all_moves: return self.__bot_score(board, n_moves, col)
 
         best_move = None
 
-        if col == 1:  # MAX (Blanc)
-            best_value = float("-inf")
-            for pos, moves in all_moves:
-                for m in moves:
-                    new_board = self.__simulate_move(board, pos, m)
+        best_value = float("-inf") if col == 1 else float("inf")
+        for pos, moves in all_moves:
+            for m in moves:
+                new_board = self.__simulate_move(board, pos, m)
 
-                    value = self.__bot_move(new_board, depth-1, -1, alpha, beta, n_moves+1, False)
+                value = self.__bot_move(new_board, depth-1, -1, alpha, beta, n_moves+1, False)
 
-                    if value > best_value:
-                        best_value = value
-                        if top:
-                            best_move = (pos, m)
+                if (value > best_value and col == 1) or (value < best_value and col == -1):
+                    best_value = value
+                    if top:
+                        best_move = (pos, m)
 
-                    alpha = max(alpha, value)
-                    if beta <= alpha:
-                        break
+                if col == 1: alpha = max(alpha, value)
+                else:        beta  = min(beta, value)
 
-            return best_move if top else best_value
+                if beta <= alpha:
+                    break
 
-        else:  # MIN (Noir)
-            best_value = float("inf")
-            for pos, moves in all_moves:
-                for m in moves:
-                    new_board = self.__simulate_move(board, pos, m)
-
-                    value = self.__bot_move(new_board, depth-1, 1, alpha, beta, n_moves+1, False)
-
-                    if value < best_value:
-                        best_value = value
-                        if top:
-                            best_move = (pos, m)
-
-                    beta = min(beta, value)
-                    if beta <= alpha:
-                        break
-
-            return best_move if top else best_value
+        return best_move if top else best_value
 
     def __bot_score(self, board: list[list[int]], moves: int, col: int) -> int:
         val = self.evaluate_board(board) * 2
@@ -153,12 +133,10 @@ class Board:
 
     def __simulate_move(self, board, frm, to):
         new_board = [row[:] for row in board]
-        x1, y1 = frm
-        x2, y2 = to
 
-        piece = new_board[y1][x1]
-        new_board[y1][x1] = 0
-        new_board[y2][x2] = piece
+        piece = new_board[frm[1]][frm[0]]
+        new_board[frm[1]][frm[0]] = 0
+        new_board[to[1]][to[0]] = piece
         return new_board
 
     def __get_all_moves_from(self, pos: tuple[int, int], piece: int, board: list[list[int]]) -> list[tuple[int, int]]:
@@ -239,15 +217,12 @@ class Board:
         return moves
 
     def find_king(self, board: list[list[int]]) -> tuple[int, int]:
-        val = 1000 if self.to_who else -1000
-
         for y in range(0, 8, 1):
             for x in range(0, 8, 1):
-                if board[y][x] == val:
-                    del val
+                if board[y][x] == (1000 if self.to_who else -1000):
                     return (x, y)
         
-        del val, x, y
+        del x, y
 
     def is_square_attacked(self, board: list[list[int]], pos: tuple[int, int], col: int) -> bool:
         for x in range(0, 8, 1):
@@ -270,24 +245,14 @@ class Board:
 
     def is_checkmate(self, board: list[list[int]]) -> bool:
         if not self.is_check(board): return False
-        if len(self.get_all_moves(board, 1 if self.to_who else -1)) == 0:
-            return True
-        return False
+        return len(self.get_all_moves(board, 1 if self.to_who else -1)) == 0
     
     def is_stalemate(self, board: list[list[int]]) -> bool:
         if self.is_check(board): return False
-        if len(self.get_all_moves(board, 1 if self.to_who else -1)) == 0:
-            return True
-        return False
+        return len(self.get_all_moves(board, 1 if self.to_who else -1)) == 0
     
     def is_only_kings(self, board: list[list[int]]) -> bool:
-        for x in range(0, 8, 1):
-            for y in range(0, 8, 1):
-                if board[y][x] == 0: continue
-                if abs(board[y][x]) != 1000:
-                    return False
-        
-        return True
+        return all([abs(board[y][x]) == 1000 for y in range(0, 8, 1) for x in range(0, 8, 1) if board[y][x] != 0])
 
     def create_board(self) -> list[list[int]]:
         return [[-5, -3, -4, -9, -1000, -4, -3, -5],
@@ -324,8 +289,7 @@ class Board:
                 piece = board[y][x]
                 if piece == 0: continue
                 if (1 if piece > 0 else -1) != col: continue
-                legals = self.get_poses_from(board, (x, y))
-                all_moves.append(((x, y), legals))
+                all_moves.append(((x, y), self.get_poses_from(board, (x, y))))
         return all_moves
 
     def make_move(self, board: list[list[int]], n_moves: int):
@@ -497,11 +461,9 @@ class Game:
             self.__draw_around_square(idx_to_pos(pos), k.get_pixel(og_col[0]+1, og_col[1]+1))
 
         if self.is_bot:
-            print("OK")
             self.verify_state()
             move = self.board.make_move(self.plate, self.movements)
             if not move: return
-            print("MOVE ", move)
             p_val = self.plate[move[0][1]][move[0][0]]
             self.board.move(move[0], move[1], self.plate)
             piece = idx_to_pos(move[0])
@@ -527,11 +489,10 @@ class Game:
         if score < 0:
             k.draw_string(str(abs(score)), int(25 - ((len(str(abs(score)))*10-1)/2)), 111, Color.BLACK)
 
-        if self.board.is_check(self.plate):
-            if self.board.is_checkmate(self.plate):
-                self.IsGame = False
-                self.__show_checkmate()
-                return
+        if self.board.is_checkmate(self.plate):
+            self.IsGame = False
+            self.__show_checkmate()
+            return
         if self.board.is_stalemate(self.plate):
             self.IsGame = False
             self.__show_stalemate()
