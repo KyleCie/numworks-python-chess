@@ -339,10 +339,7 @@ class Board:
         return p
     
     def is_legal(self, piece: int) -> bool:
-        print("->", piece)
-        if (self.to_who and piece > 0) or (not self.to_who and piece < 0):
-            return True
-        return False
+        return (self.to_who and piece > 0) or (not self.to_who and piece < 0)
 
 class Menu:
     
@@ -353,12 +350,7 @@ class Menu:
     def show_menu(self):
         k.fill_rect(0, 0, 320, 240, Color.BACKGROUND)
         k.draw_string("NUMWORKS CHESS", 90, 20, Color.WHITE, Color.BACKGROUND)
-        k.fill_rect(85, 60, 150, 60, Color.BUTTONLINE)
-        k.fill_rect(91, 66, 138, 48, Color.BUTTONCHOOSEN)
-        k.draw_string("1 VS 1", 130, 82, Color.BLACK ,Color.BUTTONCHOOSEN)
-        k.fill_rect(85, 140, 150, 60, Color.BUTTONLINE)
-        k.fill_rect(91, 146, 138, 48, Color.WHITE)
-        k.draw_string("1 VS BOT", 120, 162)
+        self.refresh_menu()
 
     def refresh_menu(self):
         k.fill_rect(85, 60, 150, 60, Color.BUTTONLINE)
@@ -386,56 +378,57 @@ class Game:
         self.movements: int = 0
         self.is_bot: bool = False
 
-    def __show_checkmate(self):
+    def __show_result(self):
         k.fill_rect(110, 61, 100, 100, Color.BLACK)
         k.fill_rect(112, 63, 96, 96, Color.WHITE)
+        k.draw_string(str(self.movements), int(160 - ((len(str(self.movements))*10-1)/2)), 103, Color.BLACK)
+        k.draw_string("MOVES", 135, 120, Color.BLACK)
+
+    def __show_checkmate(self):
+        self.__show_result()
         k.draw_string("BLACK" if self.board.to_who else "WHITE" + " WON", 115, 63, Color.BLACK)
         k.draw_string("CHECKMATE", 115, 80, Color.BLACK)
-        k.draw_string(str(self.movements), int(160 - ((len(str(self.movements))*10-1)/2)), 103, Color.BLACK)
-        k.draw_string("MOVES", 135, 120, Color.BLACK)
-
+        
     def __show_stalemate(self):
-        k.fill_rect(110, 61, 100, 100, Color.BLACK)
-        k.fill_rect(112, 63, 96, 96, Color.WHITE)
+        self.__show_result()
         k.draw_string("NONE WON", 120, 63, Color.BLACK)
         k.draw_string("STALEMATE", 115, 80, Color.BLACK)
-        k.draw_string(str(self.movements), int(160 - ((len(str(self.movements))*10-1)/2)), 103, Color.BLACK)
-        k.draw_string("MOVES", 135, 120, Color.BLACK)
 
     def __show_draw(self):
-        k.fill_rect(110, 61, 100, 100, Color.BLACK)
-        k.fill_rect(112, 63, 96, 96, Color.WHITE)
+        self.__show_result()
         k.draw_string("NONE WON", 120, 63, Color.BLACK)
         k.draw_string("DRAW", 140, 80, Color.BLACK)
-        k.draw_string(str(self.movements), int(160 - ((len(str(self.movements))*10-1)/2)), 103, Color.BLACK)
-        k.draw_string("MOVES", 135, 120, Color.BLACK)
 
     def __draw_piece(self, piece: int, pos: tuple[int, int]):
         p = infoMap.lookup_map.get(abs(piece), None)
         if not p: return
-        col = Color.board.BLACK_P if piece < 0 else Color.board.WHITE_P
         for info in p:
-            k.fill_rect(pos[0]+info[1], pos[1]+info[0], info[2], 1, col)
+            k.fill_rect(pos[0]+info[1], pos[1]+info[0], info[2], 1, Color.board.BLACK_P if piece < 0 else Color.board.WHITE_P)
 
-        del p, col, info
+        del p, info
 
     def __draw_pieces(self):
 
         for x in range(0, 8, 1):
             for y in range(0, 8, 1):
-                piece = self.plate[y][x]
-                self.__draw_piece(piece, idx_to_pos([x, y]))
+                self.__draw_piece(self.plate[y][x], idx_to_pos([x, y]))
 
         del x, y
-            
+    
+    def  __refresh_move(self, fm, to):
+        piece = idx_to_pos(fm)
+        k.fill_rect(piece[0], piece[1], 25, 25, k.get_pixel(piece[0]+1, piece[1]+1))
+        piece = idx_to_pos(to)
+        k.fill_rect(piece[0], piece[1], 25, 25, k.get_pixel(piece[0]+1, piece[1]+1))
+
     def __draw_board(self):
         IsWhite: bool = True
 
-        for y in range(11, 211, 25): # line
-            for x in range(60, 260, 25): # column
+        for y in range(11, 211, 25):
+            for x in range(60, 260, 25):
                 k.fill_rect(x, y, 25, 25, Color.board.WHITE if IsWhite else Color.board.BLACK)
-                IsWhite = not IsWhite # invert
-            IsWhite = not IsWhite # invert next line
+                IsWhite = not IsWhite
+            IsWhite = not IsWhite
 
         del IsWhite, x, y
 
@@ -447,7 +440,6 @@ class Game:
 
     def set_mode(self, mode: bool):
         self.is_bot = mode
-        print(mode)
 
     def MakeBoard(self):
         k.fill_rect(0, 0, 320, 240, Color.BACKGROUND)
@@ -480,6 +472,7 @@ class Game:
                 self.__draw_around_square(idx_to_pos(pos), Color.board.MOVE_TO)
             self.sel_mode = True
             self.piece_sel = self.sel_idx.copy()
+            del pos
             return
 
         if tuple(self.sel_idx) not in self.sel_poses and self.sel_idx != self.piece_sel:
@@ -487,19 +480,15 @@ class Game:
                 og_col = idx_to_pos(pos)
                 self.__draw_around_square(idx_to_pos(pos), k.get_pixel(og_col[0]+1, og_col[1]+1))
             self.sel_mode = False
+            del og_col
             return
 
         if self.sel_idx == self.piece_sel: return
-
         p_val = self.plate[self.piece_sel[1]][self.piece_sel[0]]
-
         if not self.board.is_legal(p_val): return
 
         self.board.move(self.piece_sel, self.sel_idx, self.plate)
-        piece = idx_to_pos(self.piece_sel)
-        k.fill_rect(piece[0], piece[1], 25, 25, k.get_pixel(piece[0]+1, piece[1]+1))
-        piece = idx_to_pos(self.sel_idx)
-        k.fill_rect(piece[0], piece[1], 25, 25, k.get_pixel(piece[0]+1, piece[1]+1))
+        self.__refresh_move(self.piece_sel, self.sel_idx)
         self.__draw_piece(p_val, idx_to_pos(self.sel_idx))
 
         for pos in self.sel_poses:
