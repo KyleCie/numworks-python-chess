@@ -1,7 +1,7 @@
 import kandinsky as k
 import ion as i
 import time as t
-import random as r
+from random import random
 
 def clear_screen() -> None:
     k.fill_rect(0, 0, 320, 240, Color.WHITE)
@@ -129,7 +129,7 @@ class Board:
         val += 10000 if self.is_checkmate(board) else -10000
         if moves < 12:
             val += len(self.get_all_moves(board, col)) * 2
-        return val + 0.001 * r.random()
+        return val + 0.001 * random()
 
     def __simulate_move(self, board, frm, to):
         new_board = [row[:] for row in board]
@@ -228,12 +228,10 @@ class Board:
         for x in range(0, 8, 1):
             for y in range(0, 8, 1):
                 p = board[y][x]
-                if p == 0: continue 
-                if (1 if p > 0 else -1) != col: continue
-                moves = self.__get_all_moves_from((x, y), p, board)
-                for mx, my in moves:
+                if p == 0 or (1 if p > 0 else -1) != col: continue
+                for mx, my in self.__get_all_moves_from((x, y), p, board):
                     if mx == pos[0] and my == pos[1]:
-                        del mx, my, moves, p, x, y
+                        del mx, my, p, x, y
                         return True
         del p, x, y
         return False
@@ -268,16 +266,14 @@ class Board:
         return sum([sum(line) for line in board])
 
     def get_poses_from(self, board: list[list[int]], pos: list[int]) -> list[tuple[int, int]]:
-        piece: int = board[pos[1]][pos[0]]
+        piece = board[pos[1]][pos[0]]
         if piece == 0: return []
-        moves = self.__get_all_moves_from(pos, piece, board)
         legals: list[tuple[int, int]] = []
-        for (mx, my) in moves:
+        for mx, my in self.__get_all_moves_from(pos, piece, board):
             move_board = [row[:] for row in board]
             self.move(pos, [mx, my], move_board)
             self.to_who = not self.to_who
-            if not self.is_check(move_board):
-                legals.append((mx, my))
+            if not self.is_check(move_board): legals.append((mx, my))
 
         del piece
         return legals
@@ -287,8 +283,7 @@ class Board:
         for x in range(0, 8, 1):
             for y in range(0, 8, 1):
                 piece = board[y][x]
-                if piece == 0: continue
-                if (1 if piece > 0 else -1) != col: continue
+                if piece == 0 or (1 if piece > 0 else -1) != col: continue
                 all_moves.append(((x, y), self.get_poses_from(board, (x, y))))
         return all_moves
 
