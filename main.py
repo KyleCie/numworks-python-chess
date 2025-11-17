@@ -86,143 +86,80 @@ class Board:
         self.to_who: bool = True # white = True; else False
 
     def __bot_move(self, board: list[list[int]], depth: int, col, alpha, beta, n_moves: int, top=True):
-        
-        all_moves = self.get_all_moves(board, col)
-
-        if depth == 0 or not all_moves: return self.__bot_score(board, n_moves, col)
-
+        all_moves = self.get_all_moves(board,col)
+        if depth == 0 or not all_moves: return self.__bot_score(board,n_moves,col)
         best_move = None
-
-        best_value = float("-inf") if col == 1 else float("inf")
-        for pos, moves in all_moves:
+        best_val = float("-inf") if col == 1 else float("inf")
+        for pos,moves in all_moves:
             for m in moves:
-                new_board = self.__simulate_move(board, pos, m)
-
-                value = self.__bot_move(new_board, depth-1, -1, alpha, beta, n_moves+1, False)
-
-                if (value > best_value and col == 1) or (value < best_value and col == -1):
-                    best_value = value
-                    if top:
-                        best_move = (pos, m)
-
-                if col == 1: alpha = max(alpha, value)
-                else:        beta  = min(beta, value)
-
-                if beta <= alpha:
-                    break
-
-        return best_move if top else best_value
+                b = self.__simulate_move(board,pos,m)
+                v = self.__bot_move(b,depth-1,-col,alpha,beta,n_moves+1,False)
+                if (col == 1 and v>best_val) or (col == -1 and v<best_val):
+                    best_val = v
+                    if top: best_move=(pos,m)
+                if col == 1: alpha=max(alpha,v)
+                else:        beta=min(beta,v)
+                if beta<=alpha: break
+        return best_move if top else best_val
 
     def __bot_score(self, board: list[list[int]], moves: int, col: int) -> int:
         val = self.evaluate_board(board) * 2
         val += 10000 if self.is_checkmate(board) else -10000
-        if moves < 12:
-            val += len(self.get_all_moves(board, col)) * 2
+        if moves < 12: val += len(self.get_all_moves(board, col)) * 2
         return val + 0.001 * random()
 
     def __simulate_move(self, board, frm, to):
         new_board = [row[:] for row in board]
-
         piece = new_board[frm[1]][frm[0]]
         new_board[frm[1]][frm[0]] = 0
         new_board[to[1]][to[0]] = piece
         return new_board
 
-    def __get_all_moves_from(self, pos: tuple[int, int], piece: int, board: list[list[int]]) -> list[tuple[int, int]]:
-        moves = []
-        x, y = pos
-        color = 1 if piece > 0 else -1
-        abs_piece = abs(piece)
-
-        def inside(nx, ny):
-            return 0 <= nx < 8 and 0 <= ny < 8
-
-        def add_slide(directions):
-            for dx, dy in directions:
-                nx, ny = x + dx, y + dy
-                while inside(nx, ny):
-                    if board[ny][nx] == 0:
-                        moves.append((nx, ny))
-                    elif board[ny][nx] * color < 0:
-                        moves.append((nx, ny))
-                        break
-                    else:
-                        break
-                    nx += dx
-                    ny += dy
-
-        # === PION ===
-        if abs_piece == 1:
-            dir = -1 if color == 1 else 1  # blanc monte, noir descend
-            start_row = 6 if color == 1 else 1
-
-            if inside(x, y + dir) and board[y + dir][x] == 0:
-                moves.append((x, y + dir))
-                if y == start_row and board[y + 2 * dir][x] == 0:
-                    moves.append((x, y + 2 * dir))
-
-            for dx in (-1, 1):
-                nx, ny = x + dx, y + dir
-                if inside(nx, ny) and board[ny][nx] * color < 0:
-                    moves.append((nx, ny))
-
-        # === CAVALIER ===
-        elif abs_piece == 3:
-            for dx, dy in (
-                (-2, -1), (-2, 1), (2, -1), (2, 1),
-                (-1, -2), (-1, 2), (1, -2), (1, 2)
-            ):
-                nx, ny = x + dx, y + dy
-                if inside(nx, ny) and board[ny][nx] * color <= 0:
-                    moves.append((nx, ny))
-
-        # === FOU ===
-        elif abs_piece == 4:
-            add_slide(((1, 1), (1, -1), (-1, 1), (-1, -1)))
-
-        # === TOUR ===
-        elif abs_piece == 5:
-            add_slide(((1, 0), (-1, 0), (0, 1), (0, -1)))
-
-        # === DAME ===
-        elif abs_piece == 9:
-            add_slide((
-                (1, 0), (-1, 0), (0, 1), (0, -1),
-                (1, 1), (1, -1), (-1, 1), (-1, -1)
-            ))
-
-        # === ROI ===
-        elif abs_piece == 1000:
-            for dx in (-1, 0, 1):
-                for dy in (-1, 0, 1):
-                    if dx == dy == 0:
-                        continue
-                    nx, ny = x + dx, y + dy
-                    if inside(nx, ny) and board[ny][nx] * color <= 0:
-                        moves.append((nx, ny))
-
-        del x, y, color, abs_piece
-
-        return moves
+    def __get_all_moves_from(self, pos: tuple[int, int], p: int, bd: list[list[int]]) -> list[tuple[int, int]]:
+        m = []; x,y = pos; c=1 if p>0 else-1;a=abs(p)
+        def ins(nx,ny): return 0<=nx<8 and 0<=ny<8
+        def slide(ds):
+            for dx,dy in ds:
+                nx,ny=x+dx,y+dy
+                while ins(nx,ny):
+                    t=bd[ny][nx]
+                    if t==0: m.append((nx,ny))
+                    elif t*c<0: m.append((nx,ny)); break
+                    else: break
+                    nx+=dx;ny+=dy
+        if a==1:
+            d=-1 if c==1 else 1;sr=6 if c==1 else 1
+            if ins(x,y+d)and bd[y+d][x]==0:
+                m.append((x,y+d))
+                if y==sr and bd[y+2*d][x]==0: m.append((x,y+2*d))
+            for dx in(-1,1):
+                nx,ny=x+dx,y+d
+                if ins(nx,ny)and bd[ny][nx]*c<0: m.append((nx,ny))
+        elif a==3:
+            for dx,dy in((-2,-1),(-2,1),(2,-1),(2,1),(-1,-2),(-1,2),(1,-2),(1,2)):
+                nx,ny=x+dx,y+dy
+                if ins(nx,ny)and bd[ny][nx]*c<=0: m.append((nx,ny))
+        elif a==4: slide(((1,1),(1,-1),(-1,1),(-1,-1)))
+        elif a==5: slide(((1,0),(-1,0),(0,1),(0,-1)))
+        elif a==9: slide(((1,0),(-1,0),(0,1),(0,-1),(1,1),(1,-1),(-1,1),(-1,-1)))
+        elif a==1000:
+            for dx in(-1,0,1):
+                for dy in(-1,0,1):
+                    if dx or dy:
+                        nx,ny=x+dx,y+dy
+                        if ins(nx,ny) and bd[ny][nx]*c<=0: m.append((nx,ny))
+        return m
 
     def find_king(self, board: list[list[int]]) -> tuple[int, int]:
-        for y in range(0, 8, 1):
-            for x in range(0, 8, 1):
-                if board[y][x] == (1000 if self.to_who else -1000):
-                    return (x, y)
-        
-        del x, y
+        return next((x,y)for y in range(8)for x in range(8)if board[y][x]==(1000 if self.to_who else -1000))
 
     def is_square_attacked(self, board: list[list[int]], pos: tuple[int, int], col: int) -> bool:
-        for x in range(0, 8, 1):
-            for y in range(0, 8, 1):
-                p = board[y][x]
-                if p == 0 or (1 if p > 0 else -1) != col: continue
-                for mx, my in self.__get_all_moves_from((x, y), p, board):
-                    if mx == pos[0] and my == pos[1]:
-                        del mx, my, p, x, y
-                        return True
-        del p, x, y
+        for y in range(8):
+            for x in range(8):
+                p=board[y][x]
+                if p and (p>0)-(p<0)==col:
+                    for mx,my in self.__get_all_moves_from((x,y),p,board):
+                        if (mx,my)==pos: return True
         return False
 
     def is_check(self, board: list[list[int]]) -> bool:
@@ -255,25 +192,22 @@ class Board:
         return sum([sum(line) for line in board])
 
     def get_poses_from(self, board: list[list[int]], pos: list[int]) -> list[tuple[int, int]]:
-        piece = board[pos[1]][pos[0]]
-        if piece == 0: return []
-        legals: list[tuple[int, int]] = []
-        for mx, my in self.__get_all_moves_from(pos, piece, board):
-            move_board = [row[:] for row in board]
-            self.move(pos, [mx, my], move_board)
+        p = board[pos[1]][pos[0]]
+        if not p: return []
+        l = []
+        for mx,my in self.__get_all_moves_from(pos,p,board):
+            b = [r[:] for r in board]
+            self.move(pos,[mx,my],b)
             self.to_who = not self.to_who
-            if not self.is_check(move_board): legals.append((mx, my))
-
-        del piece
-        return legals
+            if not self.is_check(b): l.append((mx,my))
+        return l
 
     def get_all_moves(self, board: list[list[int]], col: int) -> list[tuple[int, int]]:
         all_moves = []
-        for x in range(0, 8, 1):
-            for y in range(0, 8, 1):
-                piece = board[y][x]
-                if piece == 0 or (1 if piece > 0 else -1) != col: continue
-                all_moves.append(((x, y), self.get_poses_from(board, (x, y))))
+        for y in range(8):
+            for x in range(8):
+                p = board[y][x]
+                if p and (p>0)-(p<0) == col: all_moves.append(((x,y),self.get_poses_from(board,(x,y))))
         return all_moves
 
     def make_move(self, board: list[list[int]], n_moves: int):
@@ -348,20 +282,13 @@ class Game:
         k.draw_string("DRAW", 140, 80, Color.BLACK)
 
     def __draw_piece(self, piece: int, pos: tuple[int, int]):
-        p = infoMap.lookup_map.get(abs(piece), None)
-        if not p: return
-        for info in p:
+        for info in infoMap.lookup_map.get(abs(piece), ()):
             k.fill_rect(pos[0]+info[1], pos[1]+info[0], info[2], 1 if len(info) == 3 else info[3], Color.board.BLACK_P if piece < 0 else Color.board.WHITE_P)
 
-        del p, info
-
     def __draw_pieces(self):
-
-        for x in range(0, 8, 1):
-            for y in range(0, 8, 1):
+        for x in range(8):
+            for y in range(8):
                 self.__draw_piece(self.plate[y][x], idx_to_pos([x, y]))
-
-        del x, y
     
     def  __refresh_move(self, fm, to):
         piece = idx_to_pos(fm)
@@ -371,14 +298,11 @@ class Game:
 
     def __draw_board(self):
         IsWhite: bool = True
-
         for y in range(11, 211, 25):
             for x in range(60, 260, 25):
                 k.fill_rect(x, y, 25, 25, Color.board.WHITE if IsWhite else Color.board.BLACK)
                 IsWhite = not IsWhite
             IsWhite = not IsWhite
-
-        del IsWhite, x, y
 
     def __draw_around_square(self, pos, color):
         k.fill_rect(pos[0], pos[1], 25, 1, color)
@@ -410,8 +334,6 @@ class Game:
         self.sel_col = k.get_pixel(real_pos[0]+1, real_pos[1]+1)
         self.old_sel_idx = self.sel_idx.copy()
 
-        del real_pos
-
     def action_from_select(self):
         if not self.sel_mode:
             if not self.board.is_legal(self.plate[self.sel_idx[1]][self.sel_idx[0]]): return
@@ -420,7 +342,6 @@ class Game:
                 self.__draw_around_square(idx_to_pos(pos), Color.board.MOVE_TO)
             self.sel_mode = True
             self.piece_sel = self.sel_idx.copy()
-            del pos
             return
 
         if tuple(self.sel_idx) not in self.sel_poses and self.sel_idx != self.piece_sel:
@@ -428,7 +349,6 @@ class Game:
                 og_col = idx_to_pos(pos)
                 self.__draw_around_square(idx_to_pos(pos), k.get_pixel(og_col[0]+1, og_col[1]+1))
             self.sel_mode = False
-            del og_col
             return
 
         if self.sel_idx == self.piece_sel: return
@@ -450,28 +370,22 @@ class Game:
             if not move: return
             p_val = self.plate[move[0][1]][move[0][0]]
             self.board.move(move[0], move[1], self.plate)
-            piece = idx_to_pos(move[0])
-            k.fill_rect(piece[0], piece[1], 25, 25, k.get_pixel(piece[0]+1, piece[1]+1))
-            piece = idx_to_pos(move[1])
-            k.fill_rect(piece[0], piece[1], 25, 25, k.get_pixel(piece[0]+1, piece[1]+1))
+            for m in move:
+                piece = idx_to_pos(m)
+                k.fill_rect(piece[0], piece[1], 25, 25, k.get_pixel(piece[0]+1, piece[1]+1))
             self.__draw_piece(p_val, idx_to_pos(move[1]))
 
         self.select_refresh()
         self.sel_poses = []
         self.sel_mode = False
         self.movements += 1
-
-        del p_val, piece
     
     def verify_state(self):
 
         score = self.board.evaluate_board(self.plate)
         k.fill_rect(265, 0, 55, 222, Color.BACKGROUND)
         k.fill_rect(0, 0, 55, 222, Color.BACKGROUND)
-        if score > 0:
-            k.draw_string(str(score), int(295 - ((len(str(score))*10-1)/2)), 111, Color.BLACK)
-        if score < 0:
-            k.draw_string(str(abs(score)), int(25 - ((len(str(abs(score)))*10-1)/2)), 111, Color.BLACK)
+        k.draw_string(str(abs(score)), int((25 if score < 0 else 295) - ((len(str(abs(score)))*10-1)/2)), 111, Color.BLACK)
 
         if self.board.is_checkmate(self.plate):
             self.IsGame = False
@@ -485,8 +399,6 @@ class Game:
             self.IsGame = False
             self.__show_draw()
             return
-        
-        del score
 
 
 menu = Menu()
